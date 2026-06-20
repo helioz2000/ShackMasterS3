@@ -19,7 +19,7 @@ This project is develped in Visual Studio Code with Expressif ESP-IDF extension 
 
 Open the project configuration menu (`idf.py menuconfig`).
 
-In the `Example Configuration` menu:
+In the `WiFi Configuration` menu:
 
 * Set the Wi-Fi configuration.
     * Set `WiFi SSID`.
@@ -27,7 +27,12 @@ In the `Example Configuration` menu:
 
 Optional: If you need, change the other options according to your requirements.
 
-### Build and Flash
+## Usage
+
+After startup the RGB LED will light up Magenta for a couple of seconds. If the boot button is pressed during this time, the board will start a WiFi access point.  
+If the button is not pressed, the board will start a WiFi client and attempt to conenct to the previously configured WiFi network.
+
+## Build and Flash
 
 Build the project and flash it to the board, then run the monitor tool to view the serial output:
 

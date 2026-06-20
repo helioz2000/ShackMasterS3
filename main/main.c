@@ -1,15 +1,13 @@
-/*  WiFi softAP Example with RGB LED Status Indicator
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
+/*  
+ * See README.md for details
 */
-#include <string.h>
+
+#include <time.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_mac.h"
+#include "driver/gpio.h"
+
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -17,107 +15,74 @@
 
 #include "lwip/err.h"
 #include "lwip/sys.h"
+
+#include "appevents.h"
 #include "rgb_led.h"
+#include "wifi.h"
 
-/* The examples use WiFi configuration that you can set via project configuration menu.
+#define BOOT_BUTTON_GPIO_PIN 0
 
-   If you'd rather not, just change the below entries to strings with
-   the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
-*/
-#define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
-#define EXAMPLE_ESP_WIFI_CHANNEL   CONFIG_ESP_WIFI_CHANNEL
-#define EXAMPLE_MAX_STA_CONN       CONFIG_ESP_MAX_STA_CONN
+static const char *TAG = "SM-S3_main";
 
-#if CONFIG_ESP_GTK_REKEYING_ENABLE
-#define EXAMPLE_GTK_REKEY_INTERVAL CONFIG_ESP_GTK_REKEY_INTERVAL
-#else
-#define EXAMPLE_GTK_REKEY_INTERVAL 0
-#endif
+QueueHandle_t app_event_queue = NULL;
 
-static const char *TAG = "wifi softAP";
+bool activate_AP = false;
 
-static void wifi_event_handler(void* arg, esp_event_base_t event_base,
-                                    int32_t event_id, void* event_data)
-{
-    if (event_id == WIFI_EVENT_AP_STACONNECTED) {
-        wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
-        ESP_LOGI(TAG, "station "MACSTR" join, AID=%d", MAC2STR(event->mac), event->aid);
-    } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
-        wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
-        ESP_LOGI(TAG, "station "MACSTR" leave, AID=%d, reason=%d", MAC2STR(event->mac), event->aid, event->reason);
-        rgb_led_flash(true, 0); // Flash LED with default period to indicate waiting for connections
-    } else if (event_id == WIFI_EVENT_AP_START) {
+void handle_wifi_ap_events (app_event_queue_t evt_queue) {
+
+    wifi_sta_list_t wifi_sta_list;
+
+    if (evt_queue.wifi_ap.event_id == WIFI_EVENT_AP_START) {
         rgb_led_set_color(0, 0, 32); // Set LED to blue to indicate softAP is running
-        rgb_led_flash(true, 0); // Stop flashing LED to indicate connection established
-        ESP_LOGI(TAG, "WiFi soft-AP started");
-    } else if (event_id == WIFI_EVENT_AP_STOP) {
-        ESP_LOGI(TAG, "WiFi soft-AP stopped");
+        rgb_led_flash(true, 0); // Start flashing LED to indicate AP is active
+    } else if (evt_queue.wifi_ap.event_id == WIFI_EVENT_AP_STACONNECTED) {
+       rgb_led_flash(false, 0); // Stop flashing LED to indicate connection established
+       rgb_led_on(true);   // LED on steady
+    } else if (evt_queue.wifi_ap.event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        esp_err_t ret = esp_wifi_ap_get_sta_list(&wifi_sta_list);   // checl hwo many clients are connected
+        if (ret == ESP_OK) {
+            if (wifi_sta_list.num < 1) rgb_led_flash(true, 0); // Start flashing LED to indicate connection established
+        } else {
+            ESP_LOGW(TAG, "esp_wifi_ap_get_sta_list returned error");
+        }
+    }else {
+        ESP_LOGW(TAG, "APP_EVENT_WIFI_AP event %d not implemented", evt_queue.wifi_ap.event_id);
     }
 }
 
-void wifi_init_softap(void)
-{
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_ap();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                        ESP_EVENT_ANY_ID,
-                                                        &wifi_event_handler,
-                                                        NULL,
-                                                        NULL));
-
-    wifi_config_t wifi_config = {
-        .ap = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .ssid_len = strlen(EXAMPLE_ESP_WIFI_SSID),
-            .channel = EXAMPLE_ESP_WIFI_CHANNEL,
-            .password = EXAMPLE_ESP_WIFI_PASS,
-            .max_connection = EXAMPLE_MAX_STA_CONN,
-#ifdef CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT
-            .authmode = WIFI_AUTH_WPA3_PSK,
-            .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
-#else /* CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT */
-            .authmode = WIFI_AUTH_WPA2_PSK,
-#endif
-            .pmf_cfg = {
-                    .required = true,
-            },
-#ifdef CONFIG_ESP_WIFI_BSS_MAX_IDLE_SUPPORT
-            .bss_max_idle_cfg = {
-                .period = WIFI_AP_DEFAULT_MAX_IDLE_PERIOD,
-                .protected_keep_alive = 1,
-            },
-#endif
-            .gtk_rekey_interval = EXAMPLE_GTK_REKEY_INTERVAL,
-        },
+void boot_button (void) {
+    // Configure boot button input
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << BOOT_BUTTON_GPIO_PIN), // Bitmask of the pin(s)
+        .mode = GPIO_MODE_INPUT,                  // Set as input mode
+        .pull_up_en = GPIO_PULLUP_ENABLE,         // Enable internal pull-up
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,     // Disable internal pull-down
+        .intr_type = GPIO_INTR_DISABLE            // Disable interrupts for polling
     };
-    if (strlen(EXAMPLE_ESP_WIFI_PASS) == 0) {
-        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    gpio_config(&io_conf);
+
+    // Wait for 2 seconds for use to press boot button
+    for(int i = 1; i<20; i++) {
+        if (gpio_get_level(BOOT_BUTTON_GPIO_PIN) == 0) {
+            activate_AP = true;
+            ESP_LOGI(TAG, "AP activatedBoot button activated (ESP_WIFI_MODE_AP)");
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-    ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
-             EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS, EXAMPLE_ESP_WIFI_CHANNEL);
 }
 
-int connected_clients = 0;
-
-void app_main(void)
-{
+void app_init(void) {
+    // Set to local timezone (e.g., AEST - Australian Eastern Standard Time)
+    setenv("TZ", "AEST-10AEDT,M10.1.0,M4.1.0", 1);
+    tzset();
     // Initialize the RGB LED
     rgb_led_init(); 
-    rgb_led_set_color(32, 0, 0); // Set LED to red to indicate startup
+    rgb_led_set_color(64, 0, 64); // Set LED to Magenta to indicate startup
     rgb_led_on(true); // Turn on the LED
 
-    //Initialize NVS
+    //Initialize NVS (Non Volatile Storage) system
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
       ESP_ERROR_CHECK(nvs_flash_erase());
@@ -125,31 +90,41 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_AP");
+    // Check boot button
+    boot_button();
+    rgb_led_set_color(0, 32, 0); // Set LED to green to indicate startup
+}
+
+void app_main(void)
+{
+    app_init();     //
+
+    // Configure event queue for async processing
+    app_event_queue_t evt_queue;
+    app_event_queue = xQueueCreate(10, sizeof(app_event_queue_t));
+
     wifi_init_softap();
 
-    wifi_sta_list_t wifi_sta_list;
-
+    // main task loop
     while (true) {
-        vTaskDelay(pdMS_TO_TICKS(1000)); // Main task can perform other work or sleep
-        
-        // Fetch the list of connected stations
-        esp_err_t ret = esp_wifi_ap_get_sta_list(&wifi_sta_list);
-        if (ret == ESP_OK) {
-            if (wifi_sta_list.num != connected_clients) {
-                //ESP_LOGI(TAG, "Number of connected clients changed: %d -> %d", connected_clients, wifi_sta_list.num);
-                connected_clients = wifi_sta_list.num;
-                rgb_led_set_color(0, 0, 32); // Set LED to blue to indicate softAP is running
-                if (connected_clients > 0) {
-                    rgb_led_flash(false, 0); // Stop flashing LED to indicate connection established
-                    rgb_led_on(true); // Turn on LED solid to indicate client connected
-                    //rgb_led_show_status(); // Update LED to show current status (solid color for connected)
-                } else {
-                    rgb_led_flash(true, 0); // Flash LED with default period to indicate waiting for
-                }
-            }
-        }
+        // Retrieve events from queue
+        if (xQueueReceive(app_event_queue, &evt_queue, portMAX_DELAY)) {
 
+            if (APP_EVENT == evt_queue.event_group) {
+                ESP_LOGW(TAG, "APP_EVENT not implemented");
+            }
+
+            // Handle WiFi AP events
+            if (APP_EVENT_WIFI_AP ==  evt_queue.event_group) {
+                handle_wifi_ap_events(evt_queue);
+            }
+
+            // Handle WiFi client events
+            if (APP_EVENT_WIFI_CLIENT == evt_queue.event_group) {
+                ESP_LOGW(TAG, "APP_EVENT_WIFI_CLIENT not implemented");
+            }
+        } 
+        //vTaskDelay(pdMS_TO_TICKS(100)); // Main task can perform other work or sleep
     }
 
 }

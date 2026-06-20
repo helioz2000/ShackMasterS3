@@ -9,12 +9,12 @@
 #include "rgb_led.h"
 
 #define LED_STRIP_GPIO      48
-#define LED_NUM_PIXELS      1       // Number of WS2812 units in series
+#define LED_NUM_PIXELS      1        // Number of WS2812 devices in series
 #define RMT_LED_STRIP_RES   10000000 // 10MHz tick resolution required for WS2812 timing
 
-static const char *TAG = "WS2812_V6";
+static const char *TAG = "SM-S3_rgb_led";
 
-// FreeRTOS Binary Semaphore to signal when a transmission completes
+// FreeRTOS Binary Semaphore to signal when led data transmission completes
 static SemaphoreHandle_t tx_done_sem = NULL;
 
 rmt_channel_handle_t tx_chan = NULL;
