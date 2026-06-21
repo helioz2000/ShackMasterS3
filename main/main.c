@@ -17,28 +17,59 @@
 #include "lwip/sys.h"
 
 #include "appevents.h"
+#include "definitions.h"
 #include "rgb_led.h"
 #include "wifi.h"
+#include "httpserver.h"
 
 #define BOOT_BUTTON_GPIO_PIN 0
 
 static const char *TAG = "SM-S3_main";
 
 QueueHandle_t app_event_queue = NULL;
+nvs_handle_t nvs_cfg_handle;
+bool activate_AP = true;        // Activate AP as a default
 
-bool activate_AP = false;
+extern char wifi_sta_ip_str[];
+extern esp_ip4_addr_t wifi_sta_ip;
 
+// WiFi Station (Client) events
+void handle_wifi_sta_events (app_event_queue_t evt_queue) {
+
+    if (evt_queue.wifi.event_base == IP_EVENT && evt_queue.wifi.event_id == IP_EVENT_STA_GOT_IP) {
+        ESP_LOGI(TAG, "Successfully connected! Got IP: " IPSTR, IP2STR(&wifi_sta_ip));
+        start_webserver();
+        rgb_led_set_color(0,128,0);
+        rgb_led_flash(false,0);
+        rgb_led_pulse_every(true);    // Start pulsing LED to indicate server is running
+    }
+
+    if (evt_queue.wifi.event_base == WIFI_EVENT && evt_queue.wifi.event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        ESP_LOGW(TAG, "WiFi Client disconnected");
+        rgb_led_pulse_every(false);
+        rgb_led_set_color(64,0,0);    // Flashing Red to indicate disconnected
+        rgb_led_flash(true,0);
+    }
+
+    if (evt_queue.wifi.event_base == WIFI_EVENT && evt_queue.wifi.event_id == WIFI_EVENT_STA_START) {
+        ESP_LOGI(TAG, "WiFi Driver is loaded");
+    }
+
+}
+
+// WiFi Access Point events
 void handle_wifi_ap_events (app_event_queue_t evt_queue) {
 
     wifi_sta_list_t wifi_sta_list;
 
-    if (evt_queue.wifi_ap.event_id == WIFI_EVENT_AP_START) {
+    if (evt_queue.wifi.event_id == WIFI_EVENT_AP_START) {
         rgb_led_set_color(0, 0, 32); // Set LED to blue to indicate softAP is running
         rgb_led_flash(true, 0); // Start flashing LED to indicate AP is active
-    } else if (evt_queue.wifi_ap.event_id == WIFI_EVENT_AP_STACONNECTED) {
-       rgb_led_flash(false, 0); // Stop flashing LED to indicate connection established
-       rgb_led_on(true);   // LED on steady
-    } else if (evt_queue.wifi_ap.event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+    } else if (evt_queue.wifi.event_id == WIFI_EVENT_AP_STACONNECTED) {
+        start_webserver();
+        rgb_led_flash(false, 0); // Stop flashing LED to indicate connection established
+        rgb_led_on(true);   // LED on steady
+    } else if (evt_queue.wifi.event_id == WIFI_EVENT_AP_STADISCONNECTED) {
         esp_err_t ret = esp_wifi_ap_get_sta_list(&wifi_sta_list);   // checl hwo many clients are connected
         if (ret == ESP_OK) {
             if (wifi_sta_list.num < 1) rgb_led_flash(true, 0); // Start flashing LED to indicate connection established
@@ -46,7 +77,7 @@ void handle_wifi_ap_events (app_event_queue_t evt_queue) {
             ESP_LOGW(TAG, "esp_wifi_ap_get_sta_list returned error");
         }
     }else {
-        ESP_LOGW(TAG, "APP_EVENT_WIFI_AP event %d not implemented", evt_queue.wifi_ap.event_id);
+        ESP_LOGW(TAG, "APP_EVENT_WIFI_AP event %d not implemented", evt_queue.wifi.event_id);
     }
 }
 
@@ -70,10 +101,10 @@ void boot_button (void) {
         }
         vTaskDelay(pdMS_TO_TICKS(100));
     }
-
 }
 
 void app_init(void) {
+    size_t required_size = 0;
     // Set to local timezone (e.g., AEST - Australian Eastern Standard Time)
     setenv("TZ", "AEST-10AEDT,M10.1.0,M4.1.0", 1);
     tzset();
@@ -90,8 +121,20 @@ void app_init(void) {
     }
     ESP_ERROR_CHECK(ret);
 
-    // Check boot button
-    boot_button();
+    // Check if WiFi SSID has been stored in NVS
+    // If no SSID is found activiate AP mode
+    // If SSID is present the boot button can be used to forec AP mode
+    if (nvs_open(NVS_CFG_NAMESPACE, NVS_READWRITE, &nvs_cfg_handle) != ESP_OK) {
+        ESP_LOGE(TAG, "Error opening NVS handle!");
+    } else {
+        ESP_LOGI(TAG, "NVS open success");
+        ret = nvs_get_str(nvs_cfg_handle, NVS_CFG_WIFI_SSID, NULL, &required_size);
+        if ((ret == ESP_OK) && (required_size > 0)) {
+            activate_AP = false;
+            boot_button();
+        }
+    }
+
     rgb_led_set_color(0, 32, 0); // Set LED to green to indicate startup
 }
 
@@ -102,8 +145,11 @@ void app_main(void)
     // Configure event queue for async processing
     app_event_queue_t evt_queue;
     app_event_queue = xQueueCreate(10, sizeof(app_event_queue_t));
-
-    wifi_init_softap();
+    if (activate_AP) {
+        wifi_init_softap();
+    } else {
+        wifi_init_client();
+    }
 
     // main task loop
     while (true) {
@@ -120,8 +166,8 @@ void app_main(void)
             }
 
             // Handle WiFi client events
-            if (APP_EVENT_WIFI_CLIENT == evt_queue.event_group) {
-                ESP_LOGW(TAG, "APP_EVENT_WIFI_CLIENT not implemented");
+            if (APP_EVENT_WIFI_STA == evt_queue.event_group) {
+                handle_wifi_sta_events(evt_queue);
             }
         } 
         //vTaskDelay(pdMS_TO_TICKS(100)); // Main task can perform other work or sleep

@@ -22,12 +22,20 @@ rmt_encoder_handle_t led_encoder = NULL;
 rmt_transmit_config_t tx_config = {0};
 rmt_tx_channel_config_t tx_chan_config = {0};
 TimerHandle_t flash_timer = NULL;
+TimerHandle_t pulse_inc_timer = NULL;
+TimerHandle_t pulse_timer = NULL;
+static bool pulse_direction = false;    // true = increasing
 
 // Array buffer: WS2812 expects data sent in physical Green-Red-Blue (GRB) order
 uint8_t led_buffer_on[LED_NUM_PIXELS * 3]; 
 uint8_t led_buffer_off[LED_NUM_PIXELS * 3] = {0}; // Pre-filled with zeros for "off" state
+uint8_t led_buffer_pulse[3];
+uint8_t led_buffer_pulse_inc[3] = {4,4,4};
 static bool led_is_on = false; // Track current LED state
 unsigned long led_flash_period_ms = 500; // Flash period in milliseconds
+unsigned long led_pulse_inc_ms = 10; // Pulse increment period in milliseconds
+unsigned long led_pulse_period_ms = 5000; // Pulse period in milliseconds
+bool pulse_single = false;
 
 // IRAM-safe callback function for the TX Done event
 static bool IRAM_ATTR rmt_tx_done_cb(rmt_channel_handle_t tx_chan, const rmt_tx_done_event_data_t *edata, void *user_ctx) {
@@ -53,6 +61,47 @@ void flash_timer_callback(TimerHandle_t xTimer) {
         rmt_transmit(tx_chan, led_encoder, led_buffer_on, sizeof(led_buffer_on), &async_tx_config);
         led_is_on = true;
     }
+}
+
+void pulse_timer_callback(TimerHandle_t xTimer) {
+    //ESP_LOGI(TAG, "pulse_timer_callback" );
+    rgb_led_single_pulse();
+}
+
+// Non-blocking timer callback. Fires instantly on cycle, consumes near-zero CPU.
+void pulse_inc_timer_callback(TimerHandle_t xTimer) {
+   //ESP_LOGI(TAG, "pulse_inc_timer_callback" );
+    rmt_transmit_config_t async_tx_config = {
+        .loop_count = 0,
+        .flags.queue_nonblocking = 1 // Hand off to RMT hardware immediately
+    };
+
+    // Have we reached maximum ?
+    if ((led_buffer_pulse[0] >= led_buffer_on[0]) && (led_buffer_pulse[1] >= led_buffer_on[1]) && (led_buffer_pulse[2] >= led_buffer_on[2])){
+        pulse_direction = false;
+    }
+    // Have we reached minimum ?
+    if ((led_buffer_pulse[0] <= 0) && (led_buffer_pulse[1] <= 0) && (led_buffer_pulse[2] <= 0) ) {
+        if ((pulse_single) && !pulse_direction) {
+            xTimerStop(pulse_inc_timer, 10);
+            return;
+        }
+        pulse_direction = true;
+    }
+
+    if (pulse_direction) {
+        // Positive
+        if (led_buffer_on[0] > 0) led_buffer_pulse[0] += led_buffer_pulse_inc[0];
+        if (led_buffer_on[1] > 0) led_buffer_pulse[1] += led_buffer_pulse_inc[1];
+        if (led_buffer_on[2] > 0) led_buffer_pulse[2] += led_buffer_pulse_inc[2];
+    } else {
+        // Negative
+        if (led_buffer_pulse[0] > 0) led_buffer_pulse[0] -= led_buffer_pulse_inc[0];
+        if (led_buffer_pulse[1] > 0) led_buffer_pulse[1] -= led_buffer_pulse_inc[1];
+        if (led_buffer_pulse[2] > 0) led_buffer_pulse[2] -= led_buffer_pulse_inc[2];
+    }
+
+    rmt_transmit(tx_chan, led_encoder, led_buffer_pulse, sizeof(led_buffer_pulse), &async_tx_config);
 }
 
 // Helper to safely format colors into memory
@@ -108,14 +157,10 @@ void rgb_led_init() {
     // Set transactional configs (waiting for delivery to completely finish)
     tx_config.loop_count = 0; // Transmit frame exactly once
 
-        // 2. Create an asynchronous FreeRTOS daemon timer
-    flash_timer = xTimerCreate(
-        "LED_Flash_Timer", 
-        pdMS_TO_TICKS(led_flash_period_ms), 
-        pdTRUE, // Auto-reload to flash continuously
-        NULL, 
-        flash_timer_callback
-    );
+    // Create an asynchronous FreeRTOS timers
+    flash_timer = xTimerCreate( "LED_Flash_Timer", pdMS_TO_TICKS(led_flash_period_ms), pdTRUE, NULL, flash_timer_callback );
+    pulse_inc_timer = xTimerCreate( "LED_PulseInc_Timer", pdMS_TO_TICKS(led_pulse_inc_ms), pdTRUE, NULL, pulse_inc_timer_callback );
+    pulse_timer = xTimerCreate( "LED_Pulse_Timer", pdMS_TO_TICKS(led_pulse_period_ms), pdTRUE, NULL, pulse_timer_callback );
 }
 
 void rgb_led_set_color(uint8_t red, uint8_t green, uint8_t blue) {
@@ -136,6 +181,31 @@ void rgb_led_on(bool onState) {
         led_is_on = onState; // Update state tracking
     } else {
         ESP_LOGE(TAG, "Previous transmission timed out or busy!");
+    }
+}
+
+void rgb_led_pulse(bool pulseState) {
+    pulse_direction = true;
+    led_buffer_pulse[0] = 0;led_buffer_pulse[1] = 0;led_buffer_pulse[2] = 0;
+    if (pulseState) {
+        xTimerStart(pulse_inc_timer,0);
+    } else {
+        xTimerStop(pulse_inc_timer, 0);
+        xTimerStop(pulse_timer, 0);
+    }
+}
+
+void rgb_led_single_pulse() {
+    pulse_single = true;
+    rgb_led_pulse(true);
+}
+
+void rgb_led_pulse_every(bool pulseState) {
+if (pulseState) {
+        xTimerStart(pulse_timer,0);
+    } else {
+        xTimerStop(pulse_inc_timer, 0);
+        xTimerStop(pulse_timer, 0);
     }
 }
 

@@ -16,7 +16,7 @@ extern "C" {
 typedef enum {
     APP_EVENT = 0,
     APP_EVENT_WIFI_AP,
-    APP_EVENT_WIFI_CLIENT
+    APP_EVENT_WIFI_STA
 } app_event_group_t;
 
 /**
@@ -26,10 +26,12 @@ typedef enum {
  */
 typedef struct {
     app_event_group_t event_group;
-    // WiFi AP related info
+    // WiFi Events fot AP & STA
     struct {
         int32_t event_id;
-    } wifi_ap;
+        esp_event_base_t event_base;
+        void* event_data;
+    } wifi;
 } app_event_queue_t;
 
 #ifdef __cplusplus

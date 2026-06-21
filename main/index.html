@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <style>
+    html { font-family: sans-serif; display: inline-block; margin: 0px auto; text-align: center;}
+    .btn { border: none; color: white; padding: 16px 40px; text-decoration: none; font-size: 30px; margin: 10px; cursor: pointer; border-radius: 5px;}
+    .btn-on { background-color: #4CAF50; }
+    .btn-off { background-color: #f44336; }
+    .btn-send { background-color: #008CBA; font-size: 20px; padding: 10px 20px; }
+    .input-field:invalid { border-color: #f44336; background-color: #ffebee; }
+    .input-field { font-size: 20px; padding: 10px; width: 150px; text-align: center; border-radius: 5px; border: 1px solid #ccc; }
+    .data-box { font-size: 24px; color: #333; margin-top: 20px; font-weight: bold; }
+    .table-container { margin: 20px auto; max-width: 500px; padding: 0 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-radius: 5px; overflow: hidden; }
+    th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background-color: #008CBA; color: white; text-align: center; }
+    td:last-child { text-align: right; font-weight: bold; color: #333; }
+    tr:nth-child(even) { background-color: #f2f2f2; }
+    tr:hover { background-color: #e2f0f5; }
+    .status-badge-container { margin: 15px 0; }
+    .badge { font-size: 16px; padding: 6px 16px; border-radius: 20px; font-weight: bold; color: white; display: inline-block; transition: all 0.3s ease; }
+    .badge-connected { background-color: #4CAF50; box-shadow: 0 0 10px rgba(76, 175, 80, 0.5); }
+    .badge-disconnected { background-color: #f44336; box-shadow: 0 0 10px rgba(244, 67, 54, 0.5); }
+    .button-group { display: flex; justify-content: center; gap: 15px; margin: 15px 0; }
+  </style>
+  <script>
+    function togglePower(action) {
+      fetch('/api/' + action)
+        .then(response => console.log('Action sent: ' + action))
+        .catch(err => console.error('Error:', err));
+    }
+
+    const metricNames = [
+      "Voltage", "Current", "Power", "Temperature", "Fan Duty Cycle", "Mains Supply",
+      "USB1 Voltage", "USB1 Current", "USB2 Voltage", "USB2 Current",  "USB3 Voltage", "USB3 Current", "USB4 Voltage", "USB4 Current",
+      "Serial No", "Firmware Version"
+    ];
+
+    function updateStatus() {
+      fetch('/api/status')
+      .then(response => response.json())
+      .then(data => {
+        const badge = document.getElementById('connection-badge');
+        if (data.connected) {
+          badge.innerText = "Connected";
+          badge.className = "badge badge-connected";
+        } else {
+          badge.innerText = "Disconnected";
+          badge.className = "badge badge-disconnected";
+        }
+
+        const tableBody = document.getElementById('metrics-table-body');
+        let htmlRows = '';
+        
+        data.metrics.forEach((value, index) => {
+          const name = metricNames[index] || `Metric ${index + 1}`;
+          htmlRows += `<tr><td>${name}</td><td>${value}</td></tr>`;
+        });
+        tableBody.innerHTML = htmlRows;
+      })
+      .catch(err => {
+        console.error('Error fetching data:', err);
+        const badge = document.getElementById('connection-badge');
+        badge.innerText = "Server Offline";
+        badge.className = "badge badge-disconnected";
+      });
+    }
+
+    window.onload = function() {
+      updateStatus();
+      setInterval(updateStatus, 2000);
+    }
+  </script>
+  <title>Shackmaster Control</title>
+</head>
+<body>
+  <h1>ShackMaster 600 Control</h1>
+  <!-- Visual Connection Status Badge -->
+  <div class="status-badge-container">
+    <span id="connection-badge" class="badge badge-disconnected">Disconnected</span>
+  </div>
+  <div class="button-group">
+    <button class='btn btn-on' onclick="togglePower('on')">ON</button>
+    <button class='btn btn-off' onclick="togglePower('off')">OFF</button>
+  </div>
+  
+  <div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th>Metric Name</th>
+        <th>Value</th>
+      </tr>
+    </thead>
+    <tbody id="metrics-table-body">
+      <!-- JavaScript will automatically inject the 10 rows here -->
+      <tr><td colspan="2">Loading data...</td></tr>
+    </tbody>
+  </table>
+  </div>
+</body>
+</html>

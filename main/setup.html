@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <style>
+    html { font-family: sans-serif; display: inline-block; margin: 0px auto; text-align: center;}
+    .btn { border: none; color: white; padding: 16px 40px; text-decoration: none; font-size: 30px; margin: 10px; cursor: pointer; border-radius: 5px;}
+    .btn-on { background-color: #4CAF50; }
+    .btn-off { background-color: #f44336; }
+    .btn-send { background-color: #008CBA; font-size: 20px; padding: 10px 20px; }
+    .input-field:invalid { border-color: #f44336; background-color: #ffebee; }
+    .input-field { font-size: 20px; padding: 10px; width: 150px; text-align: center; border-radius: 5px; border: 1px solid #ccc; }
+    .data-box { font-size: 24px; color: #333; margin-top: 20px; font-weight: bold; }
+  </style>
+  <script>
+
+    function updateVariable() {
+      fetch('/api/status')
+        .then(response => response.text())
+        .then(data => {
+          document.getElementById('live-variable').innerText = data;
+        })
+        .catch(err => console.error('Error fetching data:', err));
+    }
+
+    function testData() {
+      var numVal = document.getElementById('num-input').value;
+      var strVal = document.getElementById('str-input').value;
+      var ssidVal = document.getElementById('ssid-input').value;
+      var pwdVal = document.getElementById('pwd-input').value;
+      if(pwdVal === '' || ssidVal === '') { alert('Please fill in both fields'); return; }
+      
+      var numInt = parseInt(numVal, 10);
+      if(numInt < 0 || numInt > 255) { alert('Number must be between 0 and 255'); return; }
+      
+      var url = '/api/set?value=' + encodeURIComponent(numVal) + '&msg=' + encodeURIComponent(strVal);
+      
+      fetch(url)
+        .then(response => response.text())
+        .then(data => console.log('Server response: ' + data))
+        .catch(err => console.error('Error sending data:', err));
+    }
+     
+    function updateWiFiSettings() {
+      var ssidVal = document.getElementById('ssid-input').value;
+      var pwdVal = document.getElementById('pwd-input').value;
+      if(pwdVal === '' || ssidVal === '') { alert('Please fill in both fields'); return; } 
+      var url = '/api/setwifi?ssid=' + encodeURIComponent(ssidVal) + '&pwd=' + encodeURIComponent(pwdVal);
+      
+      fetch(url)
+        .then(response => response.text())
+        .then(data => console.log('Server response: ' + data))
+        .catch(err => console.error('Error sending data:', err));
+    }
+
+    function sendIPData() {
+      var ipInput = document.getElementById('ip-input');
+
+      if (!ipInput.checkValidity()) {
+        alert('Please enter a valid IPv4 address (0-255 per octet).');
+        return;
+      }
+
+      var ipVal = ipInput.value;
+      var url = '/api/set_ip?ip=' + encodeURIComponent(ipVal);
+      
+      fetch(url)
+        .then(response => response.text())
+        .then(data => console.log('Server response: ' + data))
+        .catch(err => console.error('Error sending IP:', err));
+    }
+
+    function getSystemIP() {
+      fetch('/api/get_ip')
+        .then(response => response.text())
+        .then(ipAddress => {
+          document.getElementById('ip-input').placeholder = ipAddress;
+          document.getElementById('ip-input').value = ipAddress;
+        })
+        .catch(err => console.error('Error fetching system IP:', err));
+    }
+
+    function getWiFiCredentials() {
+      Promise.all([
+        fetch('/api/get_wifi_ssid'),
+        fetch('/api/get_wifi_pwd')
+      ])
+      // Convert BOTH responses to text using Promise.all again
+      .then(responses => {
+        // Validate that both HTTP requests succeeded (status 200)
+        if (!responses[0].ok || !responses[1].ok) {
+            throw new Error('Failed to fetch WiFi credentials');
+        }
+        return Promise.all([responses[0].text(), responses[1].text()]);
+      })
+      .then(([ssid, pwd]) => {
+        // Populate SSID field
+        document.getElementById('ssid-input').placeholder = ssid;
+        //document.getElementById('ssid-input').value = ssid;
+
+        // Populate Password field
+        document.getElementById('pwd-input').placeholder = pwd;
+        //document.getElementById('pwd-input').value = pwd;
+      })
+      .catch(err => console.error('Error fetching WiFi credentials:', err));
+    }
+
+    window.onload = function() {
+      //updateVariable();
+      //getSystemIP(); // Semicolon fixed here
+      getWiFiCredentials();
+      //setInterval(updateVariable, 5000);
+    }
+  </script>
+  <title>ESP32-P4 Network</title>
+</head>
+<body>
+  <h1>ShackMaster S3 WiFi Configuration</h1>
+  
+  <!-- Dual Input Block -->
+  <h2>WiFi Client</h2>
+  <p>
+    <input type='text' id='ssid-input' class='input-field' required placeholder='WiFi SSID'>
+    <input type='text' id='pwd-input' class='input-field' required placeholder='WiFi Password'>
+    <br><br>
+    <button class='btn btn-send' onclick='updateWiFiSettings()'>Update WiFi Settings</button>
+  </p>
+  
+  <hr>
+  
+  <!-- IP Input Block with Dedicated Button -->
+  <h2>Network Configuration</h2>
+  <p>
+    <input type='text' id='ip-input' class='input-field' required 
+           placeholder='Loading IP ....' 
+           pattern='^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'>
+    <br><br>
+    <button class='btn btn-send' onclick='sendIPData()'>Send IP Address</button>
+    <br><br>
+    <button class='btn btn-send' onclick='getSystemIP()'>Get System IP</button>
+  </p>
+  
+  <hr>
+  
+  <!-- The variable value will display here -->
+  <div class='data-box'>Current Variable Value: <span id='live-variable'>...</span></div>
+</body>
+</html>
