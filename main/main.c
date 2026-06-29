@@ -21,6 +21,7 @@
 #include "rgb_led.h"
 #include "wifi.h"
 #include "httpserver.h"
+#include "usbhost.h"
 
 #define BOOT_BUTTON_GPIO_PIN 0
 
@@ -54,7 +55,6 @@ void handle_wifi_sta_events (app_event_queue_t evt_queue) {
     if (evt_queue.wifi.event_base == WIFI_EVENT && evt_queue.wifi.event_id == WIFI_EVENT_STA_START) {
         ESP_LOGI(TAG, "WiFi Driver is loaded");
     }
-
 }
 
 // WiFi Access Point events
@@ -151,13 +151,24 @@ void app_main(void)
         wifi_init_client();
     }
 
-    // main task loop
+    // Start USB HID host
+    usb_hid_init();
+
+    // Main task loop
     while (true) {
         // Retrieve events from queue
         if (xQueueReceive(app_event_queue, &evt_queue, portMAX_DELAY)) {
 
             if (APP_EVENT == evt_queue.event_group) {
                 ESP_LOGW(TAG, "APP_EVENT not implemented");
+            }
+
+            if (APP_EVENT_HID_HOST ==  evt_queue.event_group) {
+                hid_host_device_event(evt_queue.hid_host_device.handle, evt_queue.hid_host_device.event, evt_queue.hid_host_device.arg);
+            }
+
+            if (APP_EVENT_HID_INTERFACE == evt_queue.event_group) {
+                hid_host_interface_event(evt_queue.hid_host_device.handle, evt_queue.hid_host_device.event, evt_queue.hid_host_device.arg);
             }
 
             // Handle WiFi AP events

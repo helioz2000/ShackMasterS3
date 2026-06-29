@@ -8,3 +8,4 @@ dependencies:
     version: "~2"
     rules:
       - if: "target in [esp32p4, esp32h2]"
+  espressif/usb_host_hid: "^1.2.0"

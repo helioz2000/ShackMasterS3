@@ -34,7 +34,7 @@ uint8_t led_buffer_pulse_inc[3] = {4,4,4};
 static bool led_is_on = false; // Track current LED state
 unsigned long led_flash_period_ms = 500; // Flash period in milliseconds
 unsigned long led_pulse_inc_ms = 10; // Pulse increment period in milliseconds
-unsigned long led_pulse_period_ms = 5000; // Pulse period in milliseconds
+unsigned long led_pulse_period_ms = 5000; // Pulse once every xx milliseconds
 bool pulse_single = false;
 
 // IRAM-safe callback function for the TX Done event

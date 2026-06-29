@@ -19,6 +19,7 @@
 
 #include "httpserver.h"
 #include "definitions.h"
+#include "usbhost.h"
 
 static const char *TAG = "SM-S3_httpserver";
 #define HTTP_PORT 80
@@ -33,6 +34,7 @@ int my_counter_variable = 42;
 
 //extern sm_values_t sm_values;
 extern bool sm_is_connected;
+extern sm_values_t sm_values;
 
 // Global variable to store the data sent by the user
 static char received_wifi_ssid[64] = {0};
@@ -111,7 +113,7 @@ static esp_err_t favicon_get_handler(httpd_req_t *req) {
 // Handler for ON button (GET /on)
 static esp_err_t on_get_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "ON button activated");
-//    sm_set_power(true);
+    sm_set_power(true);
     // Redirect or re-serve the root page to keep the buttons visible
     httpd_resp_set_type(req, "text/plain");
     httpd_resp_send(req, "ON_OK", HTTPD_RESP_USE_STRLEN);
@@ -121,7 +123,7 @@ static esp_err_t on_get_handler(httpd_req_t *req) {
 // Handler for OFF button (GET /off)
 static esp_err_t off_get_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Off button activated");
-//    sm_set_power(false);
+    sm_set_power(false);
     httpd_resp_set_type(req, "text/plain");
     httpd_resp_send(req, "OFF_OK", HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
@@ -133,7 +135,7 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
     char buf1[128];
     char buf2[256];
     char response_buffer[512];
-/*    
+    
     char sm_serial[12] =  {0};
     char sm_version[15] =  {0};
     char sm_connected[10];
@@ -160,7 +162,7 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
     snprintf(response_buffer, sizeof(response_buffer), "{\n\"connected\": %s, \n\"metrics\": [ %s%s ]\n}", sm_connected, buf1, buf2);
     
     //ESP_LOGI(TAG,"Status: <%s>", response_buffer);
-*/
+
     httpd_resp_set_type(req, "text/plain");
     httpd_resp_send(req, response_buffer, HTTPD_RESP_USE_STRLEN);
     return ESP_OK;

@@ -5,7 +5,7 @@
     "interface/ftdi/esp_ftdi.cfg",
     "target/esp32s3.cfg"
   ],
-  "idf.port": "/dev/tty.usbmodem5B790708981",
+  "idf.port": "/dev/tty.usbmodem5B911001441",
   "idf.currentSetup": "/Users/eb/.espressif/v6.0.1/esp-idf",
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32s3"
