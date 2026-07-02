@@ -8,9 +8,10 @@ Control Software
 
 This project is designed run on a [Espressif ESP32-S3](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/)  board which is equipped with WiFi and 2 USB ports.
 
-* The main USB-C port (COM) is used for programming and debugging the board.
-* The ShackMaster 600 is connected to the seconday USB-C port (USB) interfaced and acts as a HID device.
-* The USB 2 port on the board is configured as a HID host.
+* The USB-C port marked `COM` is used for programming and debugging the board.
+* The ShackMaster 600 is connected to the second USB-C port marked USB and acts as a HID device.
+* The USB port on the board is configured as a HID host.
+* USB-OTG solder jumper muct be bridged (see hardware note below)
 
 ## IDE
 This project is develped in Visual Studio Code with Expressif ESP-IDF extension installed.
@@ -27,10 +28,24 @@ In the `WiFi Configuration` menu:
 
 Optional: If you need, change the other options according to your requirements.
 
-## Usage
+## Startup options
 
 After startup the RGB LED will light up Magenta for a couple of seconds. If the boot button is pressed during this time, the board will start a WiFi access point.  
-If the button is not pressed, the board will start a WiFi client and attempt to conenct to the previously configured WiFi network.
+If the button is not pressed, the board will start a WiFi client and attempt to connect to the previously configured WiFi network.
+
+## WiFi AP
+
+This mode allows the a device to connect to the WiFi network provided by the board. SSID and password is set in project configuration mentioned above.
+
+Once connected to the Board WiFi AP, browse to 192.168.4.1 and use the browser to set your netowrk SSID and password. Then press the **RESET** button on the board and wait until it connects your network.
+
+## Important Hardware Note
+
+The ShackMaster600 USB interface requires 5V to be present at the port. Whilst a computer or USB hub provides the 5V supply, the ESP32-S3 board does not link the power of the COM USB port to the secondary USB port.
+
+The board contains a solder jumper marked "USB-OTG" on the back of the PCB. Bridging this jumper will link the 5V rail of both USB ports and therefore provide power to the ShackMaster 600 USB port. Without this bridge USB communication will not work.
+
+![ESP32-S3 PCB](main/PCB_underside.png)
 
 ## Build and Flash
 
@@ -46,24 +61,4 @@ See the Getting Started Guide for all the steps to configure and use the ESP-IDF
 * [ESP-IDF Getting Started Guide on ESP32-S2](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/get-started/index.html)
 * [ESP-IDF Getting Started Guide on ESP32-C3](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/get-started/index.html)
 
-## Example Output
 
-There is the console output for this example:
-
-```
-I (917) phy: phy_version: 3960, 5211945, Jul 18 2018, 10:40:07, 0, 0
-I (917) wifi: mode : softAP (30:ae:a4:80:45:69)
-I (917) wifi softAP: wifi_init_softap finished.SSID:myssid password:mypassword
-I (26457) wifi: n:1 0, o:1 0, ap:1 1, sta:255 255, prof:1
-I (26457) wifi: station: 70:ef:00:43:96:67 join, AID=1, bg, 20
-I (26467) wifi softAP: station:70:ef:00:43:96:67 join, AID=1
-I (27657) esp_netif_lwip: DHCP server assigned IP to a station, IP is: 192.168.4.2
-```
-
-## Running the example on ESP Chips without Wi-Fi
-
-This example can run on ESP Chips without Wi-Fi using ESP-Hosted. See the [Two-Chip Solution](../../README.md#wi-fi-examples-with-two-chip-solution) section in the upper level `README.md` for information.
-
-## Troubleshooting
-
-For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you soon.
