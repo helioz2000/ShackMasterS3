@@ -4,6 +4,8 @@
 # RigExpert ShackMaster Power 600 
 Control Software
 
+![Screenshot](main/img/Screenshot.png)
+
 ## Overview
 
 This project is designed run on a [Espressif ESP32-S3](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/)  board which is equipped with WiFi and 2 USB ports.
@@ -45,7 +47,7 @@ The ShackMaster600 USB interface requires 5V to be present at the port. Whilst a
 
 The board contains a solder jumper marked "USB-OTG" on the back of the PCB. Bridging this jumper will link the 5V rail of both USB ports and therefore provide power to the ShackMaster 600 USB port. Without this bridge USB communication will not work.
 
-![ESP32-S3 PCB](main/PCB_underside.png)
+![ESP32-S3 PCB](main/img/PCB_underside.png)
 
 ## Build and Flash
 
