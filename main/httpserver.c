@@ -148,7 +148,7 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
     else snprintf(sm_connected, sizeof(sm_connected), "false");
 
     // Deliver data in a JSON string
-    snprintf(buf1,sizeof(buf1), "\"%d.%dV\", \"%d.%dA\", \"%dW\", \"%d°C\", \"%d%%\", \"%dV %d.%dHz\"",
+    snprintf(buf1,sizeof(buf1), "\"%d.%dV %d.%dA\ %dW\", \"%d°C %d%%\", \"%dV %d.%dHz\"",
         sm_values.voltage / 10, sm_values.voltage % 10, sm_values.current / 10, sm_values.current % 10,
         sm_values.power_tot, sm_values.temp_in, sm_values.fan_duty, sm_values.supply_V, sm_values.supply_F / 10, sm_values.supply_F % 10);
 
