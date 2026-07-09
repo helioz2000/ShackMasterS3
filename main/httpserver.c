@@ -152,7 +152,7 @@ static esp_err_t status_get_handler(httpd_req_t *req) {
         sm_values.voltage / 10, sm_values.voltage % 10, sm_values.current / 10, sm_values.current % 10,
         sm_values.power_tot, sm_values.temp_in, sm_values.fan_duty, sm_values.supply_V, sm_values.supply_F / 10, sm_values.supply_F % 10);
 
-    snprintf(buf2, sizeof(buf2), ", \"%d.%dV\", \"%d.%dA\", \"%d.%dV\", \"%d.%dA\", \"%d.%dV\", \"%d.%dA\", \"%d.%dV\", \"%d.%dA\", \"%s\", \"%s\"",
+    snprintf(buf2, sizeof(buf2), ", \"%d.%dV %d.%dA\", \"%d.%dV %d.%dA\", \"%d.%dV %d.%dA\", \"%d.%dV %d.%dA\", \"%s\", \"%s\"",
         sm_values.usb1_v / 10, sm_values.usb1_v % 10, sm_values.usb1_a / 100, sm_values.usb1_a % 100,
         sm_values.usb2_v / 10, sm_values.usb2_v % 10, sm_values.usb2_a / 100, sm_values.usb2_a % 100,
         sm_values.usb3_v / 10, sm_values.usb3_v % 10, sm_values.usb3_a / 100, sm_values.usb3_a % 100,
